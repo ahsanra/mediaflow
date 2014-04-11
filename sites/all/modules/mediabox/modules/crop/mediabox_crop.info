@@ -1,0 +1,16 @@
+name = "Mediabox Crop"
+description = "Mediabox inline cropping support."
+package = "Mediabox"
+core = 7.x
+
+dependencies[] = mediabox
+dependencies[] = mediabox_library
+
+files[] = includes/mediabox_crop.db.tables.inc
+
+; Information added by drupal.org packaging script on 2013-10-15
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "mediabox"
+datestamp = "1381843042"
+

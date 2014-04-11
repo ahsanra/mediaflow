@@ -1,0 +1,19 @@
+diff --git a/core_bridge/storage_core_bridge.module b/core_bridge/storage_core_bridge.module
+index 724ad12..d224440 100755
+--- a/core_bridge/storage_core_bridge.module
++++ b/core_bridge/storage_core_bridge.module
+@@ -499,7 +499,13 @@ class DrupalStorageStreamWrapper implements DrupalStreamWrapperInterface {
+     global $storage_core_bridge_filename;
+     fclose($this->fp);
+ 
+-    if ($this->mode == 'w') {
++    $existing = db_select('storage_core_bridge')
++      ->fields('storage_core_bridge')
++      ->condition('uri', $this->uri)
++      ->execute()
++      ->rowCount();
++
++    if ($this->mode == 'w' && !$existing) {
+ 
+       $options = array(
+         'source_uri' => $this->temp_uri,

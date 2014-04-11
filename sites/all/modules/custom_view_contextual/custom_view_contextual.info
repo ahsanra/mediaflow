@@ -1,0 +1,5 @@
+name = Custom Views Contextual Filter Query
+description = Modifies a single Views 3 contextual filter to use OR in WHERE instead of AND
+core = 7.x
+ 
+package = Custom Code

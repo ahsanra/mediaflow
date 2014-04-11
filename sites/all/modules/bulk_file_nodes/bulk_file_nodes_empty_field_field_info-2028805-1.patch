@@ -1,0 +1,37 @@
+diff --git a/bulk_photo_nodes.module b/bulk_photo_nodes.module
+index 27fcead..ffa9fb8 100644
+--- a/bulk_photo_nodes.module
++++ b/bulk_photo_nodes.module
+@@ -587,13 +587,13 @@ function bulk_photo_nodes_prepare_fields(&$node_fields, $node, &$node_overrides,
+         $items = field_get_items('node', $node, $field_name);
+         if (is_array($items)) {
+           foreach ($items as $item) {
+-            if (!$empty_function($item, $field_name)) {
++            if (!$empty_function($item, $field_info)) {
+               $is_empty = FALSE;
+             }
+           }
+         }
+         elseif (!is_array($items) && !empty($items)) {
+-          if (!$empty_function($items, $field_name)) {
++          if (!$empty_function($items, $field_info)) {
+             $is_empty = FALSE;
+           }
+         }
+@@ -855,14 +855,14 @@ function bulk_photo_nodes_check_field_empty($field_name, $node) {
+     if (is_array($field_items)) {
+       // Multi-value field.
+       foreach ($field_items as $item) {
+-        if (!$empty_function($item, $field_name)) {
++        if (!$empty_function($item, $field_info)) {
+           $field_has_value = TRUE;
+         }
+       }
+     }
+     elseif (!is_array($field_items) && !empty($field_items)) {
+       // String/numeric value.
+-      if (!$empty_function($field_items, $field_name)) {
++      if (!$empty_function($field_items, $field_info)) {
+         $field_has_value = TRUE;
+       }
+       else {

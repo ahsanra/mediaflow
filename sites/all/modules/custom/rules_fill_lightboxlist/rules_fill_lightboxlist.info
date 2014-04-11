@@ -1,0 +1,4 @@
+name = Rules Fill Lightbox List for the User
+description = "Filling LightBox List for the User who is loggedin"
+core = 7.x
+

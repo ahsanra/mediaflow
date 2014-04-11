@@ -1,0 +1,147 @@
+diff --git a/views/views_bulk_operations_handler_field_operations.inc b/views/views_bulk_operations_handler_field_operations.inc
+index 43a61b8..9a01f4d 100644
+--- a/views/views_bulk_operations_handler_field_operations.inc
++++ b/views/views_bulk_operations_handler_field_operations.inc
+@@ -57,6 +57,7 @@ class views_bulk_operations_handler_field_operations extends views_handler_field
+         'enable_select_all_pages' => array('default' => TRUE),
+         'force_single' => array('default' => FALSE),
+         'entity_load_capacity' => array('default' => 10),
++        'dont_batch' => array('default' => FALSE),
+       ),
+     );
+     $options['vbo_operations'] = array(
+@@ -141,6 +142,14 @@ class views_bulk_operations_handler_field_operations extends views_handler_field
+           $dom_id . '-selected' => array(1),
+         ),
+       );
++      $form['vbo_operations'][$operation_id]['dont_batch'] = array(
++        '#type' => 'checkbox',
++        '#title' => t("Don't use batch/queue"),
++        '#default_value' => !empty($operation_options['dont_batch']),
++        '#dependency' => array(
++          $dom_id . '-selected' => array(1),
++        ),
++      );
+ 
+       $form['vbo_operations'][$operation_id] += $operation->adminOptionsForm($dom_id);
+     }
+diff --git a/views_bulk_operations.module b/views_bulk_operations.module
+index cc67cf5..50a7f39 100644
+--- a/views_bulk_operations.module
++++ b/views_bulk_operations.module
+@@ -703,9 +703,11 @@ function views_bulk_operations_form_submit($form, &$form_state) {
+ function views_bulk_operations_execute($vbo, $operation, $selection, $select_all_pages = FALSE) {
+   global $user;
+ 
++  $dont_batch = $operation->getAdminOption('dont_batch');
++
+   // This is an aggregate operation, and it requires all rows to be selected.
+   // Try to load them without a batch.
+-  if ($operation->aggregate() && $select_all_pages) {
++  if ($select_all_pages && ($dont_batch || $operation->aggregate())) {
+     views_bulk_operations_direct_adjust($selection, $vbo);
+   }
+ 
+@@ -713,6 +715,11 @@ function views_bulk_operations_execute($vbo, $operation, $selection, $select_all
+   $options = array(
+     'revision' => $vbo->revision,
+     'entity_load_capacity' => $vbo->get_vbo_option('entity_load_capacity', 10),
++    'view_name' => $vbo->view->name,
++    'view_display' => $vbo->view->current_display,
++    'view_arguments' => $vbo->view->args,
++    'view_exposed_input' => $vbo->view->get_exposed_input(),
++    'caller_uri' => request_path(),
+   );
+   // Create an array of rows in the needed format.
+   $rows = array();
+@@ -741,6 +748,13 @@ function views_bulk_operations_execute($vbo, $operation, $selection, $select_all
+     return;
+   }
+ 
++  // Execute all operations immediately without batch, but with separate executions.
++  if ($dont_batch) {
++    $options['view'] = $vbo->view;
++    views_bulk_operations_direct_process_singles($operation, $rows, $options);
++    return;
++  }
++
+   // Determine the correct queue to use.
+   if ($operation->getAdminOption('postpone_processing')) {
+     // Use the site queue processed on cron.
+@@ -1015,6 +1029,7 @@ function views_bulk_operations_queue_item_process($queue_item_data, &$log = NULL
+     $operation_context = array(
+       'progress' => $row['position'],
+       'rows' => $row['views_row'],
++      'options' => $options,
+     );
+     $operation->execute($entity, $operation_context);
+ 
+@@ -1108,6 +1123,68 @@ function views_bulk_operations_direct_process($operation, $rows, $options) {
+ }
+ 
+ /**
++ * Processes the passed rows directly (without batching and queueing) PER ITEM.
++ */
++function views_bulk_operations_direct_process_singles($operation, $rows, $options) {
++  @set_time_limit(0);
++
++  // Prepare an array of status information. Imitates the Batch API naming
++  // for consistency. Passed to views_bulk_operations_execute_finished().
++  $context = array();
++  $context['results']['progress'] = 0;
++  $context['results']['log'] = array();
++
++  $entity_type = $operation->entityType;
++  $entity_ids = array();
++  foreach ($rows as $row_index => $row) {
++    $entity_ids[] = $row['entity_id'];
++  }
++  $entities = _views_bulk_operations_entity_load($entity_type, $entity_ids, $options['revision']);
++
++  foreach ($entities as $id => $entity) {
++    if (!_views_bulk_operations_entity_access($operation, $entity_type, $entity)) {
++      $context['results']['log'][] = t('Skipped %operation on @type %title due to insufficient permissions.', array(
++        '%operation' => $operation->label(),
++        '@type' => $entity_type,
++        '%title' => _views_bulk_operations_entity_label($entity_type, $entity),
++      ));
++      unset($entities[$id]);
++    }
++  }
++  if (empty($entities)) {
++    return;
++  }
++
++  // Pass the selected rows to the operation if needed.
++  $operation_context = array(
++    'rows' => array(),
++    'progress' => array(
++      'current' => 0,
++      'total' => count($entities),
++    ),
++    'options' => $options,
++  );
++  if ($operation->needsRows()) {
++    foreach ($rows as $row_index => $row) {
++      $operation_context['rows'][$row_index] = $row['views_row'];
++    }
++  }
++
++  foreach ($entities as $entity) {
++    $operation_context['progress']['current']++;
++    $operation->execute($entity, $operation_context);
++  }
++
++  $context['results']['log'][] = t('Performed aggregate %operation on @items.', array(
++    '%operation' => $operation->label(),
++    '@items' => format_plural(count($entities), '1 item', '@count items'),
++  ));
++  $context['results']['progress'] += count($entities);
++
++  views_bulk_operations_execute_finished(TRUE, $context['results'], array());
++}
++
++/**
+  * Helper function that runs after the execution process is complete.
+  */
+ function views_bulk_operations_execute_finished($success, $results, $operations) {

@@ -1,0 +1,16 @@
+name = Zencoder API for Media
+description = Zencoder is a webservice to transcode videos.
+package = Media
+dependencies[] = media_derivatives
+dependencies[] = media_amazon
+core = 7.x
+
+files[] = media_zencoder.module
+
+
+; Information added by drupal.org packaging script on 2013-10-01
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "media_zencoder"
+datestamp = "1380586645"
+

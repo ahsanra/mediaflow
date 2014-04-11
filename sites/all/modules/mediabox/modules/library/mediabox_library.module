@@ -1,0 +1,130 @@
+<?php
+/**
+ * @file
+ * Mediabox library module.
+ */
+
+define('MEDIABOX_PAGER_SIZE', 10);
+define('MEDIABOX_LIBRARY_IMAGE_STYLE', 'mediabox_thumbnail');
+define('MEDIABOX_LIBRARY_IMAGE_STYLE_DETAIL', 'mediabox_detail');
+
+/**
+ * Implements hook_menu().
+ */
+function mediabox_library_menu() {
+  $items = array();
+
+  // Upload
+  $items['admin/structure/mediabox-library/upload'] = array(
+    'title' => 'Upload media file',
+    'page callback' => 'mediabox_library_upload',
+    'access arguments' => array('manage mediabox files'),
+    'type' => MENU_LOCAL_ACTION,
+    'file' => 'includes/mediabox_library.pages.inc',
+  );
+
+  $items['admin/structure/mediabox-library/update/%mediabox'] = array(
+    'title callback' => 'mediabox_page_edit_title',
+    'title arguments' => array(4),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('mediabox_library_form_bulk_update', 4),
+    'access arguments' => array('manage mediabox files'),
+    'type' => MENU_CALLBACK,
+    'file' => 'includes/mediabox_library.forms.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_image_default_styles().
+ */
+function mediabox_library_image_default_styles() {
+  $styles = array();
+
+  $styles['mediabox_thumbnail'] = array(
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array(
+          'width' => 60,
+          'height' => 60,
+          'upscale' => 1,
+        ),
+        'weight' => 0,
+      ),
+    )
+  );
+
+  $styles['mediabox_detail'] = array(
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array(
+          'width' => 150,
+          'height' => 150,
+          'upscale' => 1,
+        ),
+        'weight' => 0,
+      ),
+    )
+  );
+
+  return $styles;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function mediabox_library_theme() {
+  return array(
+    'mediabox_library_list_form' => array(
+      'render element' => 'form'
+    ),
+    'mediabox_library_detail' => array(
+      'variables' => array('mediabox' => NULL),
+      'template' => 'theme/mediabox-library-detail',
+      'file' => 'includes/mediabox_library.theme.inc',
+    )
+  );
+}
+
+/* API */
+
+/**
+ * Table form action callback for removing multiple media.
+ *
+ * @param array $media
+ * @return void
+ */
+function mediabox_library_action_remove_selected($media = array()) {
+  // No files were selected
+  if (sizeof($media) == 0) {
+    return;
+  }
+
+  // Create URL param
+  $ids = implode('+', $media);
+  drupal_goto('admin/library/remove/' . $ids);
+}
+
+/**
+ * Gets library table header
+ *
+ * @return array
+ */
+function mediabox_library_list_header() {
+  $header = array(
+    array('data' => '<input type="checkbox" value="all">', 'class' => 'all'),
+    array('data' => t('Preview'), 'class' => 'image'),
+    array('data' => t('Title'), 'field' => 'title'),
+    array('data' => t('Author'), 'field' => 'user_id'),
+    array('data' => t('Bundle'), 'field' => 'type'),
+    array('data' => t('Type'), 'class' => 'type'),
+    array('data' => t('Size'), 'class' => 'size'),
+    array('data' => t('Date'), 'field' => 'created', 'class' => array('date')),
+    array('data' => t('Actions'), 'class' => array('actions')),
+  );
+
+  return $header;
+}

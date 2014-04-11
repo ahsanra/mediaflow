@@ -1,0 +1,8 @@
+<?php
+function custom_view_contextual_views_query_alter(&$view, &$query) {
+ 	
+  if ($view->name == 'master_asset_view' || $view->name == 'lightbox_asset_view' ) {
+    $query->where[0]['type'] = 'OR';
+  }
+}
+?>

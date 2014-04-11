@@ -1,0 +1,233 @@
+<?php
+
+/**
+ * @file
+ * Mediabox install.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function mediabox_install() {
+
+  db_insert('mediabox_type')
+    ->fields(array(
+      'type' => 'default',
+      'title' => 'Default',
+      'description' => 'Default media type',
+      'created' => REQUEST_TIME,
+      'modified' => REQUEST_TIME,
+    ))->execute();
+
+  _mediabox_add_default_fields();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function mediabox_uninstall() {
+  _mediabox_remove_default_fields();
+}
+
+/**
+ * Implements hook_schema().
+ */
+function mediabox_schema() {
+  $schema['mediabox'] = array(
+    'description' => 'Mediabox entity table',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'user_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'fid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'alternate_text' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+      'caption' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+      'description' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+      'meta_dimensions' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'modified' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+
+  $schema['mediabox_type'] = array(
+    'description' => 'Bundle types for mediabox entity',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'modified' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'module' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        // Set the default to ENTITY_CUSTOM without using the constant as it is
+        // not safe to use it at this point.
+        'default' => 0x01,
+        'size' => 'tiny',
+        'description' => 'The exportable status of the entity.',
+      ),
+      'status' => array(
+        'description' => 'The name of the providing module if the entity has been defined in code.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}
+
+/* Helpers */
+
+function _mediabox_add_default_fields() {
+
+  if (!field_info_field('mediabox_image')) {
+    field_create_field(array(
+      'field_name' => 'mediabox_image',
+      'type' => 'image',
+      'entity_types' => array('mediabox', 'mediabox_display'),
+    ));
+  }
+
+  if (!field_info_instance('mediabox', 'mediabox_image', 'default')) {
+    field_create_instance(array(
+      'field_name' => 'mediabox_image',
+      'entity_type' => 'mediabox',
+      'bundle' => 'default',
+      'label' => t('mediabox image'),
+      'widget' => array(
+        'type' => 'image_image',
+        'weight' => 0,
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'weight' => 1,
+          'module' => 'image',
+          'settings' => array(
+            'image_style' => 'original',
+          ),
+        ),
+        'teaser' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'weight' => 1,
+          'module' => 'image',
+          'settings' => array(
+            'image_style' => 'original',
+          ),
+        ),
+        'full' => array(
+          'label' => 'hidden',
+          'type' => 'image',
+          'weight' => 1,
+          'module' => 'image',
+          'settings' => array(
+            'image_style' => 'original',
+          ),
+        ),
+        'library' => array(
+          'label' => 'hidden',
+          'weight' => 1,
+          'type' => 'image',
+          'module' => 'image',
+          'settings' => array(
+            'image_style' => 'original',
+          ),
+        ),
+      ),
+    ));
+  }
+}
+
+function _mediabox_remove_default_fields() {
+  field_delete_field('mediabox_image');
+  field_purge_batch(100);
+
+  // Delete field instance configuration data.
+  db_delete('field_config_instance')
+    ->condition('field_name', 'mediabox_image')
+    ->condition('entity_type', 'mediabox')
+    ->condition('bundle', 'default')
+    ->execute();
+}

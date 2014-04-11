@@ -1,0 +1,597 @@
+<?php
+/**
+ * @file
+ * Mediabox UI module.
+ */
+
+require_once 'includes/mediabox_ui.elements.inc';
+require_once 'includes/mediabox_ui.fields.inc';
+
+define('MEDIABOX_UI_IMAGE_STYLE', 'mediabox_thumbnail');
+
+/**
+ * Implements hook_admin_paths().
+ */
+function mediabox_ui_admin_paths() {
+  return array(
+    'mediabox-browser' => TRUE,
+    'mediabox-browser/*' => TRUE,
+    'mediabox-browser/*/*' => TRUE,
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function mediabox_ui_menu() {
+  $items = array();
+
+  $items['admin/config/mediabox'] = array(
+    'title' => 'Mediabox',
+    'description' => 'Mediabox configuration.',
+    'position' => 'left',
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('access administration pages'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/config/mediabox/files'] = array(
+    'title' => 'File',
+    'description' => 'Mediabox file system.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('mediabox_ui_settings_form'),
+    'access arguments' => array('access administration pages'),
+    'file' => 'includes/mediabox_ui.forms.inc',
+    'weight' => 1,
+  );
+
+  $items['mediabox-browser/%/browse'] = array(
+    'title callback' => 'mediabox_ui_browser_page_title',
+    'title arguments' => array(1, 'browse_button'),
+    'page callback' => 'mediabox_ui_browser_page',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'file' => 'includes/mediabox_ui.pages.inc',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  $items['mediabox-browser/%/upload'] = array(
+    'title callback' => 'mediabox_ui_browser_page_title',
+    'title arguments' => array(1, 'upload_button'),
+    'page callback' => 'mediabox_ui_library_page',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'file' => 'includes/mediabox_ui.pages.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function mediabox_ui_menu_alter(&$items) {
+  // Take over this menu item from views.
+  $items['mediabox-browser/%'] = array(
+    'title' => 'Mediabox browser',
+    'page callback' => 'mediabox_ui_page',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'file' => 'includes/mediabox_ui.pages.inc',
+    'type' => MENU_CALLBACK,
+    'module' => 'mediabox_ui',
+  );
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ */
+function mediabox_ui_module_implements_alter(&$implementations, $hook) {
+  // We need to reorder hook_menu_alter() calls so mediabox_ui_menu_alter() is
+  // called after views_menu_alter().
+  if ($hook == 'menu_alter') {
+    unset($implementations['mediabox_ui']);
+    $reordered = array();
+    foreach ($implementations as $key => $value) {
+      $reordered[$key] = $value;
+      if ($key === 'views') {
+        $reordered['mediabox_ui'] = FALSE;
+      }
+    }
+    $implementations = $reordered;
+  }
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function mediabox_ui_entity_info() {
+
+  $entities['mediabox_display'] = array(
+    'label' => t('Mediabox display'),
+    'controller class' => 'MediaboxDisplayController',
+    'views controller class' => 'MediaboxDisplayViewsController',
+    'metadata controller class' => 'MediaboxDisplayMetaDataController',
+    'entity class' => 'MediaboxDisplayEntity',
+    'view callback' => 'mediabox_display_view',
+    'load hook' => 'mediabox_display_load',
+    'base table' => 'mediabox_display',
+    'fieldable' => TRUE,
+    'module' => 'mediabox_ui',
+    'entity keys' => array(
+      'id' => 'id',
+      'bundle' => 'type',
+      'label' => 'title',
+    ),
+    'bundle keys' => array(
+      'bundle' => 'type',
+    ),
+    'bundles' => array(
+      'display' => array(
+        'label' => t('Display'),
+      ),
+    ),
+    'view modes' => array(
+      'default' => array(
+        'label' => t('Default'),
+        'custom settings' => FALSE,
+      ),
+      'display' => array(
+        'label' => t('Display'),
+        'custom settings' => FALSE,
+      ),
+    ),
+    'static cache' => TRUE,
+  );
+
+  $entities['mediabox_display_type'] = array(
+    'label' => t('Mediabox Display Type'),
+    'entity class' => 'MediaboxDisplayType',
+    'controller class' => 'MediaboxDisplayTypeController',
+    'base table' => 'mediabox_display_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'mediabox_display',
+    'exportable' => TRUE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'title',
+    ),
+    'module' => 'mediabox_ui',
+    'admin ui' => array(
+      'path' => 'admin/structure/mediabox-ui',
+      'file' => 'includes/mediabox_ui.entity.inc',
+      'controller class' => 'MediaboxDisplayTypeUIController',
+      'menu wildcard' => '%mediabox_display_type',
+    ),
+    'access callback' => 'mediabox_display_type_access',
+  );
+
+  return $entities;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function mediabox_ui_entity_info_alter(&$entity_info) {
+  $bundles = mediabox_display_get_bundles();
+  if (is_array($bundles)) {
+    foreach ($bundles as $bundle) {
+      $entity_info['mediabox_display']['bundles'][$bundle->type] = array(
+        'label' => $bundle->title,
+        'admin' => array(
+          'path' => 'admin/structure/mediabox-ui/manage/%mediabox_display_type',
+          'real path' => 'admin/structure/mediabox-ui/manage/' . $bundle->type,
+          'bundle argument' => 4,
+          'access arguments' => array('administer media files'),
+        ),
+      );
+    }
+  }
+}
+
+/**
+ * Implements hook_image_default_styles().
+ */
+function mediabox_ui_image_default_styles() {
+
+  $styles = array();
+  $styles['mediabox_library'] = array(
+    'effects' => array(
+      array(
+        'name' => 'image_scale',
+        'data' => array(
+          'width' => 270,
+          'height' => 270,
+          'upscale' => 1,
+        ),
+        'weight' => 0,
+      ),
+    ),
+  );
+
+  return $styles;
+}
+
+/**
+ * Implements of hook_permission().
+ */
+function mediabox_ui_permission() {
+  return array(
+    'administer media display types' => array(
+      'title' => t('Administer mediabox display bundles'),
+      'description' => t('Allows to access mediabox display bundles administration'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_library().
+ */
+function mediabox_ui_library() {
+  $libraries = array();
+  $library_path = _mediabox_library_path('jquery.fancybox');
+
+  $libraries['jquery.fancybox'] = array(
+    'title' => 'FancyBox',
+    'website' => 'http://fancybox.net/',
+    'version' => '1.3.4',
+    'css' => array(
+      $library_path . '/fancybox/jquery.fancybox-1.3.4.css' => array(
+        'type' => 'file',
+        'media' => 'screen',
+      ),
+    ),
+    'js' => array(
+      $library_path . '/fancybox/jquery.fancybox-1.3.4.pack.js' => array(
+        'type' => 'file',
+      ),
+    )
+  );
+
+  return $libraries;
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function mediabox_ui_field_extra_fields() {
+  $fields = array(
+    'title' => array(
+      'label' => t('Title'),
+      'description' => t('mediabox entity meta'),
+      'weight' => -5,
+    ),
+    'alternate_text' => array(
+      'label' => t('Alt. text'),
+      'description' => t('mediabox entity meta'),
+      'weight' => -3,
+    ),
+    'meta_dimension' => array(
+      'label' => t('Dimensions'),
+      'description' => t('mediabox entity meta'),
+      'weight' => -1,
+    ),
+  );
+
+  $extra['mediabox_display']['display'] = array(
+    'form' => $fields,
+    'display' => $fields,
+  );
+
+  return $extra;
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function mediabox_ui_entity_insert($entity, $entity_type) {
+  // Do something on entity insert?
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function mediabox_ui_entity_update($entity, $entity_type) {
+  // Do something on entity update?
+}
+
+/**
+ * Implements hook_filter_info().
+ */
+function mediabox_ui_filter_info() {
+  $filters = array();
+  $filters['filter_mediabox'] = array(
+    'title' => t('Convert mediabox placeholders into mediabox view'),
+    'process callback' => '_mediabox_filter',
+  );
+
+  return $filters;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function mediabox_ui_views_api() {
+  return array(
+    'api' => 3.0,
+    'path' => drupal_get_path('module', 'mediabox_ui') . '/views',
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function mediabox_ui_theme() {
+  return array(
+    'mediabox_ui_browser' => array(
+      'variables' => array('content', 'field_cardinality'),
+      'template' => 'theme/mediabox_ui_browser',
+      'file' => 'includes/mediabox_ui.theme.inc',
+    ),
+    'mediabox_multiple_value_form' => array(
+      'render element' => 'element',
+      'file' => 'includes/mediabox_ui.theme.inc',
+    ),
+    'mediabox_ui_element' => array(
+      'render element' => 'element',
+    ),
+    'mediabox_display' => array(
+      'render element' => 'elements',
+      'template' => 'theme/mediabox_display',
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme_registry_alter().
+ */
+function mediabox_ui_theme_registry_alter(&$theme_registry) {
+  $theme_registry['html__mediabox_browser'] = array(
+    'template' => 'html--mediabox-browser',
+    'path' => drupal_get_path('module', 'mediabox_ui') . "/theme",
+    'render element' => 'page',
+    'base hook' => 'html',
+    'type' => 'theme_engine',
+    'theme path' => path_to_theme(),
+    'preprocess functions' => array(),
+    'process functions' => array(),
+  );
+
+  $theme_registry['page__mediabox_browser'] = array(
+    'template' => 'page--mediabox-browser',
+    'path' => drupal_get_path('module', 'mediabox_ui') . "/theme",
+    'render element' => 'page',
+    'base hook' => 'page',
+    'type' => 'theme_engine',
+    'theme path' => path_to_theme(),
+    'preprocess functions' => array(),
+    'process functions' => array(),
+  );
+
+  $theme_registry['html__mediabox_browser_upload'] = array(
+    'template' => 'html--mediabox-browser-upload',
+    'path' => drupal_get_path('module', 'mediabox_ui') . "/theme",
+    'render element' => 'page',
+    'base hook' => 'html',
+    'type' => 'theme_engine',
+    'theme path' => path_to_theme(),
+    'preprocess functions' => array(),
+    'process functions' => array(),
+  );
+
+  $theme_registry['page__mediabox_browser_upload'] = array(
+    'template' => 'page--mediabox-browser-upload',
+    'path' => drupal_get_path('module', 'mediabox_ui') . "/theme",
+    'render element' => 'page',
+    'base hook' => 'page',
+    'type' => 'theme_engine',
+    'theme path' => path_to_theme(),
+    'preprocess functions' => array(),
+    'process functions' => array(),
+  );
+}
+
+/* API */
+
+/**
+ * Access callback for mediabox display bundles.
+ * 
+ * @param $op
+ * @param $mediabox_display
+ * @param null $account
+ * @param null $entity_type
+ * @return bool
+ */
+function mediabox_display_type_access($op, $mediabox_display, $account = NULL, $entity_type = NULL) {
+  if (!isset($account)) {
+    $account = $GLOBALS['user'];
+  }
+
+  switch ($op) {
+    // Only one permission for managing bundles
+    case 'create':
+    case 'view':
+    case 'edit':
+    case 'update':
+      return user_access('administer mediabox types', $account);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @param $type
+ * @return array|mixed
+ */
+function mediabox_display_type_load($type) {
+  return mediabox_display_get_bundles($type);
+}
+
+function mediabox_display_load($ids) {
+  if (is_array($ids)) {
+    return mediabox_display_load_multiple($ids);
+  }
+
+  $mediabox_display = mediabox_display_load_multiple(array($ids));
+  return array_shift($mediabox_display);
+}
+
+/**
+ * @param $ids
+ * @return mixed
+ */
+function mediabox_display_load_multiple($ids) {
+  return entity_load('mediabox_display', $ids);
+}
+
+/**
+ * @param $media
+ * @return bool
+ */
+function mediabox_display_delete($media) {
+  return entity_delete('mediabox_display', entity_id('mediabox_display', $media));
+}
+
+/**
+ * @param $media
+ * @return bool
+ */
+function mediabox_display_type_delete($media) {
+  return entity_delete('mediabox_display_type', entity_id('mediabox_display_type', $media));
+}
+
+/**
+ * @param array $ids
+ * @return bool
+ */
+function mediabox_display_delete_multiple(array $ids) {
+  return entity_delete_multiple('mediabox_display', $ids);
+}
+
+/**
+ * @param array $ids
+ * @return bool
+ */
+function mediabox_display_type_delete_multiple(array $ids) {
+  return entity_delete_multiple('mediabox_display_type', $ids);
+}
+
+/**
+ * Save mediabox entity
+ *
+ * @param mediabox $media
+ * @return mixed
+ */
+function mediabox_display_save($media) {
+  return entity_save('mediabox_display', $media);
+}
+
+/**
+ * Save MediaboxType entity
+ *
+ * @param $media_type
+ * @return mixed
+ */
+function mediabox_display_type_save($media_type) {
+  return entity_save('mediabox_type', $media_type);
+}
+
+/**
+ * Get media by id or array of ids
+ *
+ * @param $ids
+ * @return void
+ */
+function mediabox_ui_db_get_media($ids) {
+  $formed_ids = array();
+  if (is_array($ids)) {
+    foreach ($ids as $id) {
+      $formed_ids[$id] = $id;
+    }
+  }
+  else {
+    $formed_ids[$ids] = $ids;
+  }
+
+  return entity_get_controller('mediabox_display')->load($formed_ids);
+}
+
+/**
+ * Remove media
+ *
+ * @param $media
+ * @return
+ */
+function mediabox_ui_db_remove_media($media) {
+  return entity_get_controller('mediabox_display')->remove($media);
+}
+
+/**
+ * Get all media files in library
+ *
+ * @return array
+ */
+function mediabox_ui_db_get_all_media() {
+  return entity_get_controller('mediabox_display')->loadAll();
+}
+
+/**
+ * @param $media
+ * @return mixed
+ */
+function mediabox_ui_db_save_media($media) {
+  return entity_get_controller('mediabox_display')->save($media);
+}
+
+/**
+ * @param $type_name
+ * @return array|mixed
+ */
+function mediabox_display_get_bundles($type_name = NULL) {
+  $types = entity_load_multiple_by_name('mediabox_display_type', isset($type_name) ? array($type_name) : FALSE);
+  return isset($type_name) ? reset($types) : $types;
+}
+
+/* Helpers */
+
+/**
+ * Filter - replacing the placeholders with actual mediabox entities.
+ *
+ * @param $text
+ * @param $filter
+ * @return mixed
+ */
+function _mediabox_filter($text, $filter) {
+
+  $matches = array();
+  preg_match_all('/[mediabox:id:[0-9]+]/', $text, $matches);
+
+  foreach (array_shift($matches) as $match) {
+
+    $id = explode(":", $match);
+    $mediabox = mediabox_display_load($id);
+    if ($mediabox) {
+      $view = mediabox_display_view($mediabox);
+      $replacement = drupal_render($view);
+      $text = str_replace($match, $replacement, $text);
+    }
+  }
+
+  return $text;
+}
+
+function mediabox_ui_db_get_bundle_options($index = NULL) {
+  $options = db_select('mediabox_display_type', 't')
+    ->fields('t', array('type', 'title'))
+    ->execute()->fetchAllKeyed();
+
+  if (!empty($index) && isset($options[$index])) {
+    return $options[$index];
+  }
+
+  return $options;
+}

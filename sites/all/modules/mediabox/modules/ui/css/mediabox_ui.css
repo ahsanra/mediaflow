@@ -1,0 +1,263 @@
+#mediabox-browser {
+  display: block;
+  float: left;
+  width: 100%;
+}
+
+#mediabox-browser #browser-tabs {
+  display: block;
+  float: left;
+  top: 0px;
+  left: 0px;
+  width: 940px;
+  height: 35px;
+  padding: 5px;
+  background-color: #f7f3f2;
+  position: fixed;
+  z-index: 100;
+}
+
+#mediabox-browser .item-list {
+  position: fixed;
+  z-index: 110;
+  bottom: 15px;
+  width: 100%;
+  float: left;
+  margin-left: 300px;
+  background-color: transparent;
+}
+
+#mediabox-cancel-images,
+#mediabox-add-images {
+  margin-top: 5px;
+  float: left;
+}
+
+#mediabox-browser .item-list ul.pager {
+  float: left;
+}
+
+#mediabox-browser #browser-tabs ul {
+  display: block;
+  float: left;
+  width: 100%;
+  height: 45px;
+}
+
+#mediabox-browser #browser-tabs ul li a {
+  color: #ffffff;
+  background-color: #585439;
+  border-width: 0px;
+  border-radius: 0px;
+  padding: 5px;
+  line-height: 25px;
+  height: 25px;
+}
+
+#mediabox-browser #browser-tabs ul li a:hover,
+#mediabox-browser #browser-tabs ul li a.active {
+  background-color: #000000;
+}
+
+#mediabox-browser #browser-content {
+  display: block;
+  float: left;
+  margin-top: 40px;
+  width: 950px;
+}
+
+.mediabox-ui-items {
+
+}
+
+.mediabox-ui-items > .fieldset-wrapper {
+  padding: 0px;
+}
+
+.mediabox-ui-items .mediabox-ui-item {
+  float: left;
+  margin: 0px 15px 15px 15px;
+}
+
+.mediabox-ui-items .mediabox-ui-item-image {
+}
+
+.mediabox-ui-items .mediabox-ui-item-title {
+}
+
+.mediabox-ui-items .mediabox-ui-item-alternate {
+}
+
+.mediabox-ui-items .mediabox-ui-item-caption {
+}
+
+.mediabox-ui-items .mediabox-ui-item-description {
+}
+
+.mediabox-ui-items .mediabox-ui-buttons {
+  border: 0px;
+  clear: both;
+}
+
+.mediabox-selected {
+  background-color: #C3D2FF;
+  border-radius: 2px;
+}
+
+.mediabox-selectable {
+  padding: 10px;
+}
+
+.mediabox-selectable:hover {
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+
+.sticky-header {
+  z-index: 410;
+}
+
+.field-name-mediabox-image {
+  display: none;
+}
+
+#mediabox-ui-library .field-name-mediabox-image {
+  display: inline-block !important;
+}
+
+.mediabox-add-more-button.form-submit {
+  display: none;
+}
+
+.mediabox-browser-modal {
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.mediabox-placeholder {
+  display: block;
+  background-color: #E4F2BF;
+  padding: 5px;
+}
+
+.jcrop-attribute {
+  display: none;
+}
+
+.mediabox-image-info {
+  float: left;
+  margin-right: 10px;
+}
+
+.mediabox-remove .form-type-checkbox {
+  background: url(../images/remove.png) no-repeat;
+  margin-left: 20px !important;
+  margin-top: 3px !important;
+  width: 16px;
+  height: 16px;
+}
+
+.mediabox-remove .mediabox-restore {
+  background: url(../images/restore.png) no-repeat !important;
+}
+
+.mediabox-remove-hidden .form-type-checkbox {
+  display: none;
+}
+
+.mediabox-remove .form-type-checkbox input {
+  display: none;
+  margin-bottom: 10px;
+}
+
+.mediabox-button-wrappers {
+  background-color: #F7F3F2;
+  position: fixed;
+  bottom: 0px;
+  height: 40px;
+  padding: 5px;
+  width: 940px;
+  z-index: 100;
+}
+
+/* List formater */
+
+#mediabox-ui-library-list-wrapper {
+  float: left;
+}
+
+#mediabox-ui-library-list-wrapper .mediabox-selectable {
+  float: left;
+  width: 98%;
+  display: block;
+}
+
+#mediabox-ui-library-list-wrapper .mediabox-selectable .views-field-mediabox-image {
+  float: left;
+  padding-right: 10px;
+}
+
+/* Grid formater */
+
+#mediabox-ui-library-grid-wrapper .mediabox-selectable {
+  float: none;
+  text-align: center;
+  width: auto;
+}
+
+#mediabox-ui-library-grid-wrapper .views-field-mediabox-image img {
+  vertical-align: middle;
+}
+
+/* Better field UI */
+
+.mediabox-better-ui-processed tr.draggable.odd,
+.mediabox-better-ui-processed tr.draggable.even {
+  background: #fff;
+}
+
+.mediabox-better-ui-thumbs {
+  border: 1px solid #bebfb9;
+  height: 285px;
+  overflow-y: auto;
+}
+
+.mediabox-better-ui-thumbs .mediabox-image {
+  cursor: pointer;
+  display: block;
+  float: left;
+  margin: 10px;
+  padding: 10px;
+  position: relative;
+  width: 150px;
+}
+
+.mediabox-better-ui-thumbs .mediabox-image img {
+  height: 100px;
+}
+
+.mediabox-image-overlay {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  z-index: 1000;
+}
+
+.mediabox-better-ui-thumbs .mediabox-image.ui-state-highlight {
+  height: 98px;
+  margin: 20px 10px 20px 20px;
+  padding: 0 20px 0 0;
+}
+
+.mediabox-better-ui-thumbs-wrapper .description {
+  float: right;
+}
+
+.mediabox-deleted {
+  opacity: 0.3;
+}

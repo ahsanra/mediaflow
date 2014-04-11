@@ -1,0 +1,10 @@
+<?php
+/**
+* implimentation of hook_hook_info_alter()
+*/
+function rules_fill_lightboxlist_hook_info_alter(&$hooks) {
+  $hooks['form_alter']['group'] = 'form';
+}
+
+
+?>

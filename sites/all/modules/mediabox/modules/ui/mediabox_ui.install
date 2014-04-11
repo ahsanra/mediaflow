@@ -1,0 +1,669 @@
+<?php
+
+/**
+ * @file
+ * Mediabox display install.
+ */
+
+/**
+ * Implements hook_requirements().
+ */
+function mediabox_ui_requirements($phase) {
+  $requirements = array();
+  $t = get_t();
+
+  if ($phase == 'runtime') {
+    $requirements['mediabox_ui'] = array(
+      'title' => $t('Mediabox jquery fancybox plugin'),
+      'value' => $t('Unknown'),
+    );
+    $requirements['mediabox_ui']['severity'] = REQUIREMENT_OK;
+    $libraries = mediabox_ui_library();
+    $library = $libraries['jquery.fancybox'];
+
+    // Check if jquery fancybox library exists.
+    // We grab the first file and check if it exists.
+    $testfile = key($library['js']);
+    if (!file_exists($testfile)) {
+      $message = 'The <a href="@url">@title</a> plugin is not installed. Please download this plugin to sites/all/libraries manually or use <code>drush mediabox-fancybox</code> command. Mediabox works with jquery fancybox version 1.3.4.';
+      $args = array(
+        '@title' => $library['title'],
+        '@url' => url($library['website']),
+        '@version' => $library['version'],
+      );
+
+      $requirements['mediabox_ui']['description'] = $t($message, $args);
+      $requirements['mediabox_ui']['severity'] = REQUIREMENT_ERROR;
+
+      $requirements['mediabox_ui']['value'] =$t('Not found');
+    }
+    else {
+      $requirements['mediabox_ui']['value'] = $t('Founded');
+    }
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implements hook_install().
+ */
+function mediabox_ui_install() {
+  $media_type = entity_create('mediabox_display_type', array(
+    'type' => 'display',
+    'source_type' => 'display',
+    'title' => st('Display'),
+    'description' => st("Display mediabox display bundle"),
+  ));
+  mediabox_display_type_save($media_type);
+
+  $media_type = entity_create('mediabox_display_type', array(
+    'type' => 'default',
+    'source_type' => 'default',
+    'title' => st('Default'),
+    'description' => st("Default mediabox display bundle"),
+  ));
+  mediabox_display_type_save($media_type);
+
+  cache_clear_all();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function mediabox_ui_uninstall() {
+  _mediabox_ui_remove_default_fields();
+}
+
+/**
+ * Implements hook_enable().
+ */
+function mediabox_ui_enable() {
+  if (!file_exists(drupal_realpath('public://crops'))) {
+    drupal_mkdir('public://crops', 0777);
+  }
+
+  _mediabox_ui_add_default_fields();
+}
+
+/**
+ * Implements hook_field_schema().
+ */
+function mediabox_ui_field_schema($field) {
+  if ($field['type'] == 'mediabox') {
+    return array(
+      'columns' => array(
+        'mid' => array(// mediabox  entity id
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => FALSE,
+        ),
+        'display_mid' => array(// mediabox display entity id
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'fid' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => FALSE,
+        ),
+      ),
+      'indexes' => array(
+        'fid' => array('fid'),
+      ),
+    );
+  }
+}
+
+/**
+ * Implementation of HOOK_schema()
+ */
+function mediabox_ui_schema() {
+
+  $schema['mediabox_display'] = array(
+    'description' => 'mediabox entity display definition',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'user_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'crop_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'style_name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'alternate_text' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'default' => '',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'modified' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+
+  $schema['mediabox_display_type'] = array(
+    'description' => 'Bundle types for mediabox entity',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'source_type' => array(
+        'descriptions' => 'Column which references to mediabox source bundle',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'description' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'modified' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ),
+      'module' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        // Set the default to ENTITY_CUSTOM without using the constant as it is
+        // not safe to use it at this point.
+        'default' => 0x01,
+        'size' => 'tiny',
+        'description' => 'The exportable status of the entity.',
+      ),
+      'status' => array(
+        'description' => 'The name of the providing module if the entity has been defined in code.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * mediaboxDisplay entity tables
+ */
+function mediabox_ui_update_7001() {
+  if (!db_table_exists('mediabox_display')) {
+    db_create_table('mediabox_display', array(
+      'description' => 'mediabox entity display definition',
+      'fields' => array(
+        'id' => array(
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'user_id' => array(
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'created' => array(
+          'type' => NULL,
+          'mysql_type' => 'datetime',
+        ),
+        'modified' => array(
+          'type' => NULL,
+          'mysql_type' => 'datetime',
+        ),
+      ),
+      'primary key' => array('id'),
+    ));
+  }
+
+  if (!db_table_exists('mediabox_display_types')) {
+    db_create_table('mediabox_display_types', array(
+      'description' => 'Bundle types for mediabox entity',
+      'fields' => array(
+        'id' => array(
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'type' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'title' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+          'default' => '',
+        ),
+        'description' => array(
+          'type' => 'text',
+          'not null' => FALSE,
+        ),
+        'created' => array(
+          'type' => NULL,
+          'mysql_type' => 'datetime',
+        ),
+        'modified' => array(
+          'type' => NULL,
+          'mysql_type' => 'datetime',
+        ),
+      ),
+      'primary key' => array('id'),
+      'unique keys' => array(
+        'type' => array('type'),
+      ),
+    ));
+  }
+}
+
+/**
+ * Add column which references to mediabox source bundle
+ */
+function mediabox_ui_update_7002() {
+  db_add_field('mediabox_display_types', 'source_type', array(
+    'descriptions' => 'Column which references to mediabox source bundle',
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+}
+
+/**
+ * Add bundle identifier
+ */
+function mediabox_ui_update_7003() {
+  db_add_field('mediabox_display', 'type', array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+}
+
+/**
+ * Add crop id column
+ */
+function mediabox_ui_update_7004() {
+  if (!db_field_exists('mediabox_display', 'crop_id')) {
+    db_add_field('mediabox_display', 'crop_id', array(
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => TRUE,
+    ));
+  }
+}
+
+/**
+ * Add cropping style name column
+ */
+function mediabox_ui_update_7005() {
+  if (!db_field_exists('mediabox_display', 'style_name')) {
+    db_add_field('mediabox_display', 'style_name', array(
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => TRUE,
+      'default' => '',
+    ));
+  }
+}
+
+/**
+ * Implements hook_update_N().
+ */
+function mediabox_ui_update_7006() {
+  // there was some inconsistency
+  // creating blank update
+}
+
+/**
+ * Fixing tables diff's from old version to new
+ */
+function mediabox_ui_update_7007() {
+
+  db_add_field('mediabox_display', 'title', array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+
+  db_add_field('mediabox_display', 'alternate_text', array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+
+  db_add_field('mediabox_display', 'caption', array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+
+  db_add_field('mediabox_display', 'description', array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+    'default' => '',
+  ));
+}
+
+/**
+ * Adding media reference field
+ */
+function mediabox_ui_update_7008() {
+  mediabox_ui_enable();
+}
+
+/**
+ * Use timestap fields instead of current 'datetime' form 'mediabox_display' table
+ */
+function mediabox_ui_update_7009() {
+  $query = db_select('mediabox_display', 'xd')
+      ->fields('xd', array('id', 'created', 'modified'));
+
+  $results = $query->execute()->fetchAllAssoc('id');
+
+  // delete old
+  db_drop_field('mediabox_display', 'created');
+  db_drop_field('mediabox_display', 'modified');
+
+  // create new
+  db_add_field('mediabox_display', 'created', array(
+    'type' => 'int',
+    'unsigned' => TRUE,
+  ));
+
+  db_add_field('mediabox_display', 'modified', array(
+    'type' => 'int',
+    'unsigned' => TRUE,
+  ));
+
+  foreach ($results as $result) {
+    // convert to timestamp
+    $result->created = strtotime($result->created);
+    $result->modified = strtotime($result->modified);
+
+    // update records
+    drupal_write_record('mediabox_display', $result, array('id'));
+  }
+}
+
+/**
+ * Use timestap fields instead of current 'datetime' form 'mediabox_display_types' table
+ */
+function mediabox_ui_update_7010() {
+  $query = db_select('mediabox_display_types', 'xdt')
+      ->fields('xdt', array('id', 'created', 'modified'));
+
+  $results = $query->execute()->fetchAllAssoc('id');
+
+  // delete old
+  db_drop_field('mediabox_display_types', 'created');
+  db_drop_field('mediabox_display_types', 'modified');
+
+  // create new
+  db_add_field('mediabox_display_types', 'created', array(
+    'type' => 'int',
+    'unsigned' => TRUE,
+  ));
+
+  db_add_field('mediabox_display_types', 'modified', array(
+    'type' => 'int',
+    'unsigned' => TRUE,
+  ));
+
+  foreach ($results as $result) {
+    // convert to timestamp
+    $result->created = strtotime($result->created);
+    $result->modified = strtotime($result->modified);
+
+    // update records
+    drupal_write_record('mediabox_display_types', $result, array('id'));
+  }
+}
+
+/**
+ * Entity Api 'exportable' fields
+ */
+function mediabox_ui_update_7011() {
+
+  if (!db_field_exists('mediabox_display_types', 'module')) {
+    db_add_field('mediabox_display_types', 'module', array(
+      'type' => 'int',
+      'not null' => TRUE,
+      // Set the default to ENTITY_CUSTOM without using the constant as it is
+      // not safe to use it at this point.
+      'default' => 0x01,
+      'size' => 'tiny',
+      'description' => 'The exportable status of the entity.',
+    ));
+  }
+
+  if (!db_field_exists('mediabox_display_types', 'status')) {
+    db_add_field('mediabox_display_types', 'status', array(
+      'description' => 'The name of the providing module if the entity has been defined in code.',
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => FALSE,
+    ));
+  }
+
+  db_add_unique_key('mediabox_display_types', 'type', array('type'));
+}
+
+/**
+ * Rename mediabox_display_types table to mediabox_display_type
+ */
+function mediabox_update_7012() {
+
+  if (db_table_exists('mediabox_display_types')) {
+    db_rename_table('mediabox_display_types', 'mediabox_display_type');
+  }
+}
+
+/**
+ * Remove cation and description fields
+ */
+function mediabox_update_7013() {
+  if (db_field_exists('mediabox_display', 'description')) {
+    db_drop_field('mediabox_display', 'description');
+  }
+  if (db_field_exists('mediabox_display', 'caption')) {
+    db_drop_field('mediabox_display', 'caption');
+  }
+}
+
+/* Helpers */
+
+function _mediabox_ui_add_default_fields() {
+
+  if (!field_info_field('mediabox_image')) {
+    field_create_field(array(
+      'field_name' => 'mediabox_image',
+      'type' => 'image',
+      'entity_types' => array('mediabox', 'mediabox_display'),
+    ));
+  }
+
+  if (!field_info_instance('mediabox_display', 'mediabox_image', 'display')) {
+    field_create_instance(array(
+      'field_name' => 'mediabox_image',
+      'entity_type' => 'mediabox_display',
+      'bundle' => 'display',
+      'label' => t('Mediabox image'),
+      'widget' => array(
+        'weight' => 0,
+        'type' => 'image_image'
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'type' => 'mediabox_image',
+          'module' => 'image',
+          'weight' => 1,
+        ),
+        'display' => array(
+          'label' => 'hidden',
+          'type' => 'mediabox_image',
+          'module' => 'image',
+          'weight' => 1,
+        ),
+      ),
+    ));
+  }
+
+  if (!field_info_field('mediabox_description')) {
+    field_create_field(array(
+      'field_name' => 'mediabox_description',
+      'type' => 'text',
+      'cardinality' => 1,
+      'settings' => array(),
+      'entity_types' => array('mediabox', 'mediabox_display'),
+    ));
+  }
+
+  if (!field_info_instance('mediabox_display', 'mediabox_description', 'display')) {
+    field_create_instance(array(
+      'field_name' => 'mediabox_description',
+      'entity_type' => 'mediabox_display',
+      'bundle' => 'display',
+      'label' => t('Mediabox description'),
+      'widget' => array(
+        'type' => 'text_textarea',
+        'weight' => 0,
+        'settings' => array('size' => 20),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'settings' => array(),
+          'weight' => 1,
+        ),
+        'display' => array(
+          'label' => 'gidden',
+          'settings' => array(),
+          'weight' => 1,
+        ),
+      ),
+      'required' => FALSE,
+    ));
+  }
+
+  if (!field_info_field('mediabox_caption')) {
+    field_create_field(array(
+      'field_name' => 'mediabox_caption',
+      'type' => 'text',
+      'cardinality' => 1,
+      'settings' => array(),
+      'entity_types' => array('mediabox', 'mediabox_display'),
+    ));
+  }
+
+  if (!field_info_instance('mediabox_display', 'mediabox_caption', 'display')) {
+    field_create_instance(array(
+      'field_name' => 'mediabox_caption',
+      'entity_type' => 'mediabox_display',
+      'bundle' => 'display',
+      'label' => t('Mediabox caption'),
+      'widget' => array(
+        'type' => 'text_textfield',
+        'weight' => 0,
+        'settings' => array(),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'hidden',
+          'settings' => array(),
+          'weight' => 1,
+        ),
+        'display' => array(
+          'label' => 'gidden',
+          'settings' => array(),
+          'weight' => 1,
+        ),
+      ),
+      'required' => FALSE,
+    ));
+  }
+}
+
+function _mediabox_ui_remove_default_fields() {
+  field_delete_field('mediabox_image');
+  field_delete_field('mediabox_description');
+  field_delete_field('mediabox_caption');
+
+  field_purge_batch(100);
+
+  _mediabox_ui_remove_field_instance('mediabox_image', 'mediabox_display', 'display');
+  _mediabox_ui_remove_field_instance('mediabox_description', 'mediabox_display', 'display');
+  _mediabox_ui_remove_field_instance('mediabox_caption', 'mediabox_display', 'display');
+}
+
+function _mediabox_ui_remove_field_instance($field_name, $entity_type, $bundle) {
+  // Delete field instance configuration data.
+  db_delete('field_config_instance')
+    ->condition('field_name', $field_name)
+    ->condition('entity_type', $entity_type)
+    ->condition('bundle', $bundle)
+    ->execute();
+}

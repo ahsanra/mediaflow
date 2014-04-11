@@ -1,0 +1,59 @@
+***************
+*** 703,711 ****
+  function views_bulk_operations_execute($vbo, $operation, $selection, $select_all_pages = FALSE) {
+    global $user;
+  
+    // This is an aggregate operation, and it requires all rows to be selected.
+    // Try to load them without a batch.
+-   if ($operation->aggregate() && $select_all_pages) {
+      views_bulk_operations_direct_adjust($selection, $vbo);
+    }
+  
+--- 703,713 ----
+  function views_bulk_operations_execute($vbo, $operation, $selection, $select_all_pages = FALSE) {
+    global $user;
+  
++   $dont_batch = $operation->getAdminOption('dont_batch');
++ 
+    // This is an aggregate operation, and it requires all rows to be selected.
+    // Try to load them without a batch.
++   if ($select_all_pages && ($dont_batch || $operation->aggregate())) {
+      views_bulk_operations_direct_adjust($selection, $vbo);
+    }
+  
+***************
+*** 713,718 ****
+    $options = array(
+      'revision' => $vbo->revision,
+      'entity_load_capacity' => $vbo->get_vbo_option('entity_load_capacity', 10),
+    );
+    // Create an array of rows in the needed format.
+    $rows = array();
+--- 715,725 ----
+    $options = array(
+      'revision' => $vbo->revision,
+      'entity_load_capacity' => $vbo->get_vbo_option('entity_load_capacity', 10),
++     'view_name' => $vbo->view->name,
++     'view_display' => $vbo->view->current_display,
++     'view_arguments' => $vbo->view->args,
++     'view_exposed_input' => $vbo->view->get_exposed_input(),
++     'caller_uri' => request_path(),
+    );
+    // Create an array of rows in the needed format.
+    $rows = array();
+***************
+*** 1064,1069 ****
+      $operation_context = array(
+        'progress' => $row['position'],
+        'rows' => $row['views_row'],
+      );
+      $operation->execute($entity, $operation_context);
+  
+--- 1078,1084 ----
+      $operation_context = array(
+        'progress' => $row['position'],
+        'rows' => $row['views_row'],
++       'options' => $options,
+      );
+      $operation->execute($entity, $operation_context);
+  
